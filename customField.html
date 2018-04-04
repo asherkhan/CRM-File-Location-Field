@@ -1,0 +1,186 @@
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <title></title>
+    <style>
+		html,body {
+			margin: 0;
+			padding: 0;
+			max-height: 26px;
+		}
+	
+		.fileLocationContainer {
+			width: 100%;
+			display: block;
+			margin: 0 0 0 18px;
+			overflow: hidden;
+			padding: 2px 4px 3px;
+			font-family: Segoe UI, Arial, sans-serif;
+			font-size: 12px;
+			box-sizing: border-box;
+			-webkit-box-sizing: border-box;
+			-moz-box-sizing: border-box;
+		}
+		
+		.fileLocationContainer:focus,
+		.fileLocationContainer:hover,
+		.fileLocationContainer.focus {
+			border: 1px solid #ccc;
+			margin-left: 23px;
+		}
+		
+		.fileLocationContainer.disabled:focus,
+		.fileLocationContainer.disabled:hover,
+		.fileLocationContainer.disabled.focus {
+			border: none;
+			margin-left: 18px;
+		}
+		
+		.fileLocationContainer a,
+		.fileLocationContainer a:visited {
+			text-decoration: none;
+			overflow: hidden;
+			white-space: nowrap;
+			display: inline-block;
+			color: #000;
+			font-weight: bold;
+		}
+		
+		.fileLocationContainer a:hover {
+			text-decoration: underline;
+		}
+		
+		.fileLocationContainer input[type=text] {
+			display: none;
+			outline: none;
+			border: none;
+			font-family: Segoe UI, Arial, sans-serif;
+			font-size: 11px;
+		}
+	</style>
+</head>
+<body style="word-wrap: break-word;">
+	
+	<div class="fileLocationContainer">
+		<a href="" target="_blank" class="outputLabel">--</a>
+		<input maxlength="100" class="customFileLocation" type="text">
+	</div>
+	<script src="https://code.jquery.com/jquery-1.12.2.min.js" integrity="sha256-lZFHibXzMHo3GGeehn1hudTAP3Sc0uKXBXAzHX1sjtk=" crossorigin="anonymous"></script>
+	<script>
+		var views = {
+			targetField: '',
+			isReadOnly: false,
+			init: function () {
+				$('.fileLocationContainer').css('width', $('body').width() - 23);
+				$('.fileLocationContainer input[type=text]').css('width', $('.fileLocationContainer').width());
+				$('.fileLocationContainer a').css('max-width', ($('.fileLocationContainer').width() - 10) + 'px');
+				
+				views.loadTargetBackgroundField();
+				views.setReadOnlyClass();
+				views.loadCrmValueIfPresent();
+				views.ui();
+			},
+			loadTargetBackgroundField: function () {
+				try {
+					var dataParams = decodeURIComponent(location.search.split('data=')[1]);
+					console.log(dataParams);
+					if (dataParams == '') {
+						console.error('No input parameters passed');
+						return;
+					}					
+					var dataParams =  dataParams.split(',');
+					views.targetField = dataParams[0];
+					if (dataParams.length > 1) {
+						views.readonly = dataParams[1].trim().toLowerCase() == 'readonly';
+					}
+                    if (dataParams.length > 2) {
+                        iframeStyleInline(dataParams[2].trim());
+                    }
+					//views.targetField = location.search.split('data=')[1];
+				}
+				catch (err) { console.log('The target field is not being passed as a parameter to this control. Please configure the field on the form to pass the target field name as a data parameter.'); }
+			},
+			loadCrmValueIfPresent: function () {
+				var crmValue = views.getCrmValue();
+				if (crmValue == undefined || crmValue == null || crmValue == 'null' || crmValue == '' || crmValue.trim() == '') {
+					return;
+				}
+				$('.fileLocationContainer input[type=text]').val(crmValue);
+				$('.fileLocationContainer a').text(crmValue).attr('href', 'file:///' + crmValue.replace('\\', '/')).css('color', '#1160B7');
+			},
+			ui: function () {
+				$('.fileLocationContainer').on('click', function () {
+					if (!views.readonly) {
+						$(this).find('.outputLabel,.customFileLocation').toggle();
+						if ($(this).find('.customFileLocation').is(':visible')) {
+							$(this).find('.customFileLocation').focus();
+						}
+					}
+				}).on('click', 'a', function (e) {
+					e.stopPropagation();	
+					if ($(this).text() == '--') {
+						$(this).parent().click();
+						return false;
+					}
+				}).on('change', 'input[type=text]', function () {
+					views.setCrmValue($(this).val());
+					<!-- $('.outputField').val($(this).val()); -->
+					$('.outputLabel').text($(this).val() == '' ? '--' : $(this).val())
+						.attr('href', 'file:///' + $(this).val().replace(/\\/g, '/'))
+						.css('color', $(this).val() == '--' ? '#000' : '#1160B7');
+				}).on('keydown', 'input[type=text]', function(e) {
+					var enterKeyCode = 13;
+					if (e.keyCode == enterKeyCode) {
+						$(this).blur();
+					}
+				}).on('click', 'input[type=text]', function (e) {
+					e.stopPropagation();
+				}).on('focusout', 'input[type=text]', function() {
+					$(this).parent().click();
+				}).on('focus', 'input[type=text]', function() {
+					$(this).parent().addClass('focus');
+				}).on('blur', 'input[type=text]', function () {
+					$(this).parent().removeClass('focus');
+				});
+			},
+			setReadOnlyClass: function () {
+				if (views.readonly) {
+					$('.fileLocationContainer').addClass('disabled');
+				}
+			},
+			getCrmValue: function () {
+				return parent.Xrm.Page.getAttribute(views.targetField).getValue();
+			},
+			setCrmValue: function (value) {
+				parent.Xrm.Page.getAttribute(views.targetField).setValue(value);
+			}
+		}
+        // Override IFrame styles
+        function iframeStyleInline(strIFrameName) {
+        // This is needed to display a web resource (iframe) on one line of a form. Without setting the height of the iframe
+        // element the iframe takes up multiple lines on the rendered form regardless of the settings you apply in the form editor.
+        // Get the IFrame object reference.
+            var iFrame = parent.Xrm.Page.getControl(strIFrameName).getObject();
+            console.log(iFrame);
+            // Get the style attribute.
+            var atts = iFrame.attributes.getNamedItem("style").value;
+            // variable for the new style.
+            var newStyle;
+            // Check if the style attribute exists and if not create it
+            if (atts === null) {
+                newStyle = "height: 24px;";
+            }
+            else {
+            // Append the additional style.
+                newStyle = atts + " height: 24px;";
+            }
+            // Assign the amended style value back to the IFrame object reference. If the attribute doesn't already exist
+            // setAttribute creates it. If it does already exist then the attribute value is updated.
+            iFrame.setAttribute("style", newStyle);
+        }
+		views.init();		
+    </script>
+	
+
+
+</body></html>
